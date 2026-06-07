@@ -67,7 +67,7 @@ CONFIG_SPEC=(
 
 config_default() {  # built-in default per key — the ONLY place $HOME/$SCRIPT_DIR expand
     case "$1" in
-        LAPTOP_ENV)        echo "lekiwi_pincopen_2605" ;;
+        LAPTOP_ENV)        echo "lerobot" ;;
         MAMBA_ROOT)        echo "$HOME/miniforge3" ;;
         LEADER_PORT)       echo "/dev/ttyACM0" ;;
         LEADER_ID)         echo "lekiwi_leader" ;;
