@@ -1,0 +1,29 @@
+# SmolVLA fine-tune config for `lerobot-train`, sized for a 4 GB GPU (RTX 2050):
+# vision encoder frozen, only the ~100M action expert trains; everything stays local.
+#   lerobot-train --config_path examples/lekiwi/lekiwi_train.yaml \
+#       --policy.path=<pretrained_model dir | lerobot/smolvla_base> \
+#       --output_dir=smolvla_lekiwi/<run> --job_name=<run>
+
+dataset:
+  # The dataset recorded by `lekiwi.sh record` (see lekiwi_record.yaml).
+  repo_id: local/lekiwi_dataset
+  root: datasets/lekiwi_dataset      # relative to cwd -- lekiwi.sh cd's to project root
+
+policy:
+  # `path:` is REQUIRED for the sibling fields to survive: draccus pops this block and
+  # re-applies the siblings ON TOP of the checkpoint config loaded from path; without it,
+  # from_pretrained clobbers them. CLI --policy.path overrides this default.
+  path: lerobot/smolvla_base
+  freeze_vision_encoder: true        # light recipe: VLM frozen...
+  train_expert_only: true            # ...only the action expert trains (fits 4 GB)
+  push_to_hub: false                 # never publish from this machine
+
+batch_size: 8                        # lower this first on CUDA OOM (4 GB VRAM)
+steps: 20000
+save_freq: 5000                      # checkpoint hourly-ish -- a crash never loses much
+log_freq: 100
+num_workers: 4                       # dataloader video-decode workers (box has 16 cores)
+seed: 1000
+
+wandb:
+  enable: false                      # local-only training -- no cloud logging

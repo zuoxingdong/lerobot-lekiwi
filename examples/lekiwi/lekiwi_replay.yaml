@@ -1,0 +1,11 @@
+# LeKiwi replay config for `lerobot-replay`: streams one recorded episode's actions
+# back to the robot (no teleop, no cameras). Change `episode` to pick another one.
+#   lerobot-replay --config_path examples/lekiwi/lekiwi_replay.yaml
+
+robot: !include lekiwi_robot.yaml   # shared connection config; edit it in one place
+
+dataset:
+  repo_id: local/lekiwi_dataset   # must match what record wrote (loads from `root`)
+  root: datasets/lekiwi_dataset   # on-disk location; relative to where you launch
+  episode: 0                      # which episode index to replay
+  fps: 30

@@ -1,0 +1,33 @@
+# LeKiwi policy-rollout config for `lerobot-rollout` (policy eval moved here from
+# lerobot-record in 0.5.2 / #3413; replaces the obsolete lekiwi_eval.yaml).
+# Base strategy: the policy drives the robot autonomously, nothing is recorded.
+#   lerobot-rollout --config_path examples/lekiwi/lekiwi_rollout.yaml \
+#       --policy.path=<local_dir_or_hf>/<your_model>
+
+robot: !include lekiwi_robot.yaml   # shared connection config (type: lekiwi_client)
+
+# No `teleop:` -- the policy generates every action, including the base velocities.
+
+# base = autonomous rollout, no recording (sentry/highlight strategies record + need a dataset block).
+strategy:
+  type: base
+
+# sync = one full policy forward per control tick. For slow VLAs prefer rtc:
+#   --inference.type=rtc --inference.rtc.execution_horizon=10
+inference:
+  type: sync
+
+# Map robot camera keys to the slots the policy was trained with (see the checkpoint's
+# train_config.json). REQUIRED -- a mismatch raises "Visual feature mismatch".
+rename_map:
+  observation.images.front: observation.images.camera1
+  observation.images.wrist: observation.images.camera2
+  observation.images.top: observation.images.camera3
+
+fps: 30
+duration: 60          # seconds; 0 = run until Ctrl-C
+
+# Must match the task string the policy was trained on (the dataset's single_task).
+task: "Pick up the chocolate bar from the basket and put it on the ground"
+
+display_data: false   # live camera / action view in Rerun

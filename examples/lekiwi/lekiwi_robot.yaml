@@ -1,0 +1,13 @@
+# Shared LeKiwi robot connection config -- single source of truth, pulled into every
+# lekiwi_*.yaml via `robot: !include lekiwi_robot.yaml` (path resolved relative to the
+# including file). Edit remote_ip here once when your network changes.
+type: lekiwi_client            # laptop-side client; the host runs on the robot itself
+remote_ip: 192.168.45.66       # LeKiwi host IP -- changes with your network
+id: lekiwi
+polling_timeout_ms: 40         # give the host time to stream each observation (default 15)
+# Pin all 3 cameras explicitly (upstream's default dropped to 2); the client only uses
+# width/height for dataset feature shapes -- the host does the actual capture + rotation.
+cameras:
+  front: {type: opencv, index_or_path: /dev/video0, width: 640, height: 480, fps: 30}
+  wrist: {type: opencv, index_or_path: /dev/video2, width: 640, height: 480, fps: 30}
+  top: {type: opencv, index_or_path: /dev/video4, width: 640, height: 480, fps: 30}

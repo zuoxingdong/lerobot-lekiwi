@@ -1,0 +1,27 @@
+# OBSOLETE on lerobot 0.5.2 -- DO NOT USE. Upstream #3413 made `lerobot-record`
+# reject policy-driven recording; real-robot policy eval moved to the new
+# `lerobot-rollout` CLI -> use lekiwi_rollout.yaml instead. Kept for reference only
+# (pre-0.5.2 `lerobot-record` policy-eval config below).
+
+robot: !include lekiwi_robot.yaml   # shared connection config; edit it in one place
+
+# No `teleop:` -- the policy generates every action, including the base velocities.
+
+dataset:
+  # With a policy, sanity_check_dataset_name REQUIRES the name to start with `eval_`.
+  repo_id: local/eval_lekiwi
+  single_task: "My task description"
+  fps: 30
+  num_episodes: 2
+  episode_time_s: 60
+  reset_time_s: 10
+  # Streaming encoding for near-instant saves (see lekiwi_record.yaml); false = per-episode.
+  streaming_encoding: true
+  encoder_threads: 2
+  video_encoding_batch_size: 1
+  num_image_writer_threads_per_camera: 1
+  root: datasets/eval_lekiwi
+  push_to_hub: false   # keep eval rollouts local
+
+resume: false
+display_data: true

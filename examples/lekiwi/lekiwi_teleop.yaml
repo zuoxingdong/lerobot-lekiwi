@@ -1,0 +1,14 @@
+# LeKiwi teleoperation config for `lerobot-teleoperate`: SO101 leader arm drives the
+# arm, the auto-attached keyboard drives the base. No recording; Ctrl+C to stop
+# (or set teleop_time_s for a fixed duration).
+#   lerobot-teleoperate --config_path examples/lekiwi/lekiwi_teleop.yaml
+
+robot: !include lekiwi_robot.yaml   # shared connection config; edit it in one place
+
+teleop:
+  type: so101_leader
+  port: /dev/ttyACM0
+  id: lekiwi_leader
+
+fps: 30
+display_data: true

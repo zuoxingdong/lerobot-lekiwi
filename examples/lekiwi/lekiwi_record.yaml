@@ -1,0 +1,37 @@
+# LeKiwi recording config for `lerobot-record`: SO101 leader arm + auto-attached keyboard base.
+# Run from the directory where the local `datasets/` folder should live (LeKiwi host running):
+#   lerobot-record --config_path examples/lekiwi/lekiwi_record.yaml
+# Any field can be overridden on the CLI, e.g. --dataset.num_episodes=10 --resume=true
+
+robot: !include lekiwi_robot.yaml   # shared connection config; edit it in one place
+
+# Leader arm only -- the keyboard for the mobile base is auto-attached for lekiwi_client.
+teleop:
+  type: so101_leader
+  port: /dev/ttyACM0           # SO101 leader-arm serial port -- changes per machine
+  id: lekiwi_leader
+
+dataset:
+  # Local-only dataset: the `local/` namespace is cosmetic (push_to_hub off, location = `root`).
+  repo_id: local/lekiwi_dataset
+  single_task: "Pick up the chocolate bar from the basket and put it on the ground"
+  fps: 30
+  num_episodes: 5
+  episode_time_s: 40
+  reset_time_s: 5
+  # Encoding: streaming = encode in real time, near-instant saves. WARNING: batch>1 is
+  # BROKEN on 0.5.2 (_batch_save_episode_video crashes at session end, losing the whole
+  # recording -- confirmed 2026-05-31). Keep video_encoding_batch_size at 1.
+  streaming_encoding: true
+  encoder_threads: 1            # software-codec threads only; NVENC ignores this
+  video_encoding_batch_size: 1  # KEEP AT 1 -- batch>1 hits the broken path above
+  # GPU NVENC (verified on RTX 2050: h264/hevc OK, av1 not) -- uncomment for ~zero-CPU encoding:
+  # camera_encoder:
+  #  vcodec: h264_nvenc        # or `auto`; `hevc_nvenc` = smaller files
+  num_image_writer_threads_per_camera: 3  # x3 cameras = 9 total; raise if frames drop
+  root: datasets/lekiwi_dataset           # relative to the launch directory
+  push_to_hub: false
+
+# Resume into the existing dataset (`num_episodes` then means "this many MORE episodes").
+resume: false
+display_data: false   # live camera / rerun view while recording
