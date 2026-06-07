@@ -176,3 +176,8 @@ outputs/
 *.urdf
 *.xml
 *.part
+
+# lekiwi.sh launcher -- local state at the repo root (never commit)
+/lekiwi.conf
+/datasets/
+/smolvla_lekiwi/
