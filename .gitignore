@@ -181,3 +181,4 @@ outputs/
 /lekiwi.conf
 /datasets/
 /smolvla_lekiwi/
+!examples/lekiwi/*.stl

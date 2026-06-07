@@ -19,3 +19,7 @@
 *.json !text !filter !merge !diff
 tests/artifacts/cameras/*.png filter=lfs diff=lfs merge=lfs -text
 *.bag filter=lfs diff=lfs merge=lfs -text
+
+# examples/lekiwi: small 3D-print shell kept as a plain git blob -- cloning must
+# not require git-lfs (this fork does not mirror upstream LFS storage anyway)
+examples/lekiwi/*.stl -filter -diff -merge -text
