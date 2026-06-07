@@ -7,10 +7,10 @@
 # (teleop / record / replay / calibrate). Zero dependencies — pure ANSI, so it
 # works the same on the laptop and on the robot.  (Supersedes lekiwi_host.sh.)
 #
-#   ./lekiwi.sh                  # modern pop-up menu (↑↓ to move, ⏎ to select)
-#   ./lekiwi.sh teleop           # jump straight to an action
-#   ./lekiwi.sh host-launch      # == old `lekiwi_host.sh launch` (asks minutes)
-#   ./lekiwi.sh host-kill        # == old `lekiwi_host.sh kill`
+#   ./examples/lekiwi/lekiwi.sh              # modern pop-up menu (↑↓ move, ⏎ select)
+#   ./examples/lekiwi/lekiwi.sh teleop       # jump straight to an action
+#   ./examples/lekiwi/lekiwi.sh host-launch  # == old `lekiwi_host.sh launch` (asks minutes)
+#   ./examples/lekiwi/lekiwi.sh host-kill    # == old `lekiwi_host.sh kill`
 #
 # Actions: host-launch  host-kill  teleop  record  replay  view  calibrate  train  eval  settings
 #          (train = lerobot-train, LOCAL GPU only — wandb/hub off; eval = lerobot-rollout;
@@ -19,22 +19,33 @@
 # Run host-launch in ONE terminal (it holds the live session); use a SECOND
 # terminal for teleop/record.
 #
-# Config — env var at launch ▸ lekiwi.conf ▸ built-in default. Edit persistently
-# via `./lekiwi.sh settings` (or the ⚙ menu item); see CONFIG_SPEC for all keys:
+# Config — env var at launch ▸ lekiwi.conf (at the work dir, see Paths below) ▸
+# built-in default. Edit persistently via the `settings` action (or the ⚙ menu
+# item); see CONFIG_SPEC for all keys:
 #   laptop → LAPTOP_ENV MAMBA_ROOT LEADER_PORT LEADER_ID
 #   robot  → LEKIWI_HOST ROBOT_ID CONNECTION_TIME CONDA_ENV
 #   eval   → POLICY_PATH POLICY_ROOT INFERENCE EXECUTION_HORIZON DISPLAY_DATA
 #
 set -euo pipefail
 
-# ── Paths (script lives at project root; cd there so datasets/ lands here) ──
+# ── Paths — detect layout, then cd to WORK_DIR so datasets/ etc. land there ──
+# in-repo:        script lives in examples/lekiwi/ of a lerobot checkout — the
+#                 yamls sit NEXT TO it, work dir = the repo root (../..).
+# parent-project: script copied out to a project root holding a lerobot/ clone —
+#                 yamls under lerobot/examples/lekiwi, work dir = that root.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+if [ -f "$SCRIPT_DIR/lekiwi_robot.yaml" ]; then
+    CFG_DIR="$SCRIPT_DIR"
+    WORK_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+else
+    CFG_DIR="$SCRIPT_DIR/lerobot/examples/lekiwi"
+    WORK_DIR="$SCRIPT_DIR"
+fi
+cd "$WORK_DIR"
+# Self-reference for help hints (`./$SELF …`) — relative to WORK_DIR so the
+# printed commands are copy-pastable from where the user actually stands.
 SELF="$(basename "$0")"
-# Config yamls: repo layout (script at the lerobot repo root) or parent-project
-# layout (script next to a lerobot/ clone) -- first existing dir wins.
-CFG_DIR="$SCRIPT_DIR/examples/lekiwi"
-[ -d "$CFG_DIR" ] || CFG_DIR="$SCRIPT_DIR/lerobot/examples/lekiwi"
+[ "$WORK_DIR" != "$SCRIPT_DIR" ] && SELF="${SCRIPT_DIR#"$WORK_DIR"/}/$SELF"
 CFG_TELEOP="$CFG_DIR/lekiwi_teleop.yaml"
 CFG_RECORD="$CFG_DIR/lekiwi_record.yaml"
 CFG_REPLAY="$CFG_DIR/lekiwi_replay.yaml"
@@ -44,11 +55,11 @@ CFG_TRAIN="$CFG_DIR/lekiwi_train.yaml"
 # ── Config (env var at launch ▸ lekiwi.conf ▸ built-in default) ──
 # CONFIG_SPEC is the single source of truth — key|kind|hint — driving default
 # application (config_load), lekiwi.conf parse/save, and the ⚙ Settings form.
-# kinds: text | path | int | enum:<a>,<b>   (path = default expands $HOME/$SCRIPT_DIR)
+# kinds: text | path | int | enum:<a>,<b>   (path = default expands $HOME/$WORK_DIR)
 # Some related values live in the lerobot yamls, NOT here (the hints say which):
 # e.g. the client's remote_ip/id are in lekiwi_robot.yaml, teleop.port in the
 # record/teleop yamls. This registry only covers the launcher's own knobs.
-CONF_FILE="$SCRIPT_DIR/lekiwi.conf"
+CONF_FILE="$WORK_DIR/lekiwi.conf"
 CONFIG_SPEC=(
     "LAPTOP_ENV|text|laptop conda env for the lerobot CLIs"
     "MAMBA_ROOT|path|conda root (holds etc/profile.d/conda.sh)"
@@ -65,7 +76,7 @@ CONFIG_SPEC=(
     "DISPLAY_DATA|enum:off,on|eval Rerun live view default for non-TTY runs"
 )
 
-config_default() {  # built-in default per key — the ONLY place $HOME/$SCRIPT_DIR expand
+config_default() {  # built-in default per key — the ONLY place $HOME/$WORK_DIR expand
     case "$1" in
         LAPTOP_ENV)        echo "lerobot" ;;
         MAMBA_ROOT)        echo "$HOME/miniforge3" ;;
@@ -76,7 +87,7 @@ config_default() {  # built-in default per key — the ONLY place $HOME/$SCRIPT_
         CONNECTION_TIME)   echo "600" ;;
         CONDA_ENV)         echo "lekiwi" ;;
         POLICY_PATH)       echo "" ;;   # empty = auto: newest checkpoint under POLICY_ROOT
-        POLICY_ROOT)       echo "$SCRIPT_DIR/smolvla_lekiwi" ;;
+        POLICY_ROOT)       echo "$WORK_DIR/smolvla_lekiwi" ;;
         INFERENCE)         echo "sync" ;;
         EXECUTION_HORIZON) echo "20" ;;
         DISPLAY_DATA)      echo "off" ;;   # legacy 1/true/yes/on still accepted by do_eval
@@ -175,7 +186,7 @@ ensure_local_env() {
     _ENV_READY=1
 }
 
-banner() { printf '\n%s▶ %s%s\n  %slaptop env: %s · cwd: %s%s\n\n' "$ACC" "$*" "$R" "$DIM" "$LAPTOP_ENV" "$SCRIPT_DIR" "$R"; }
+banner() { printf '\n%s▶ %s%s\n  %slaptop env: %s · cwd: %s%s\n\n' "$ACC" "$*" "$R" "$DIM" "$LAPTOP_ENV" "$WORK_DIR" "$R"; }
 
 ask_minutes() {
     local def_min=$(( CONNECTION_TIME / 60 )); [ "$def_min" -lt 1 ] && def_min=1
@@ -382,7 +393,7 @@ _yaml_get() {
 
 # Where will this record land? A --dataset.root= override on the args wins;
 # otherwise parse `root:` from the yaml; otherwise the documented default. The
-# path is left as-is (relative resolves against cwd, which is SCRIPT_DIR).
+# path is left as-is (relative resolves against cwd, which is WORK_DIR).
 record_root() {
     local a r
     for a in "$@"; do case "$a" in --dataset.root=*) printf '%s\n' "${a#--dataset.root=}"; return 0 ;; esac; done
@@ -466,8 +477,8 @@ BROWSE_RESULT=''
 browse_dir() {
     { [ -t 0 ] && [ -t 1 ]; } || { BROWSE_RESULT=''; return 1; }
     local cur="$1" title="$2" sel=0 i n key win=12 top end label ans note='' above below hint
-    [ -d "$cur" ] || cur="$SCRIPT_DIR"
-    cur="$(cd "$cur" 2>/dev/null && pwd || printf '%s\n' "$SCRIPT_DIR")"
+    [ -d "$cur" ] || cur="$WORK_DIR"
+    cur="$(cd "$cur" 2>/dev/null && pwd || printf '%s\n' "$WORK_DIR")"
     BROWSE_RESULT=''
     printf '\e[?25l'
     while true; do
