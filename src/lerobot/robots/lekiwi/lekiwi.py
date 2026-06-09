@@ -37,6 +37,17 @@ from .config_lekiwi import LeKiwiConfig
 
 logger = logging.getLogger(__name__)
 
+# Hardcoded PincOpen gripper calibration values (from EPROM settings).
+# The gripper's travel limits are pre-flashed to the motor's EPROM, so we skip
+# interactive gripper calibration and use these fixed values instead.
+PINCOPEN_CALIBRATION = MotorCalibration(
+    id=6,
+    drive_mode=1,  # 1 = inverted direction => 0% is closed, 100% is open
+    homing_offset=0,
+    range_min=512,  # -135 deg (fully open)
+    range_max=2048,  # 0 deg (fully closed)
+)
+
 
 class LeKiwi(Robot):
     """
@@ -56,11 +67,11 @@ class LeKiwi(Robot):
         self.bus = FeetechMotorsBus(
             port=self.config.port,
             motors={
-                # arm
-                "arm_shoulder_pan": Motor(1, "sts3215", norm_mode_body),
-                "arm_shoulder_lift": Motor(2, "sts3215", norm_mode_body),
-                "arm_elbow_flex": Motor(3, "sts3215", norm_mode_body),
-                "arm_wrist_flex": Motor(4, "sts3215", norm_mode_body),
+                # arm (joints 1-4 upgraded to STS3250; wrist_roll + gripper remain STS3215)
+                "arm_shoulder_pan": Motor(1, "sts3250", norm_mode_body),
+                "arm_shoulder_lift": Motor(2, "sts3250", norm_mode_body),
+                "arm_elbow_flex": Motor(3, "sts3250", norm_mode_body),
+                "arm_wrist_flex": Motor(4, "sts3250", norm_mode_body),
                 "arm_wrist_roll": Motor(5, "sts3215", norm_mode_body),
                 "arm_gripper": Motor(6, "sts3215", MotorNormMode.RANGE_0_100),
                 # base
@@ -140,14 +151,17 @@ class LeKiwi(Robot):
                 return
         logger.info(f"\nRunning calibration of {self}")
 
-        motors = self.arm_motors + self.base_motors
+        # Exclude the gripper from interactive calibration (it uses the hardcoded
+        # PincOpen values written below).
+        calibration_arm_motors = [m for m in self.arm_motors if m != "arm_gripper"]
+        motors = calibration_arm_motors + self.base_motors
 
-        self.bus.disable_torque(self.arm_motors)
-        for name in self.arm_motors:
+        self.bus.disable_torque(calibration_arm_motors)
+        for name in calibration_arm_motors:
             self.bus.write("Operating_Mode", name, OperatingMode.POSITION.value)
 
         input("Move robot to the middle of its range of motion and press ENTER....")
-        homing_offsets = self.bus.set_half_turn_homings(self.arm_motors)
+        homing_offsets = self.bus.set_half_turn_homings(calibration_arm_motors)
 
         homing_offsets.update(dict.fromkeys(self.base_motors, 0))
 
@@ -167,13 +181,17 @@ class LeKiwi(Robot):
 
         self.calibration = {}
         for name, motor in self.bus.motors.items():
-            self.calibration[name] = MotorCalibration(
-                id=motor.id,
-                drive_mode=0,
-                homing_offset=homing_offsets[name],
-                range_min=range_mins[name],
-                range_max=range_maxes[name],
-            )
+            if name == "arm_gripper":
+                # Use the hardcoded PincOpen gripper calibration.
+                self.calibration[name] = PINCOPEN_CALIBRATION
+            else:
+                self.calibration[name] = MotorCalibration(
+                    id=motor.id,
+                    drive_mode=0,
+                    homing_offset=homing_offsets[name],
+                    range_min=range_mins[name],
+                    range_max=range_maxes[name],
+                )
 
         self.bus.write_calibration(self.calibration)
         self._save_calibration()
@@ -188,10 +206,22 @@ class LeKiwi(Robot):
         for name in self.arm_motors:
             self.bus.write("Operating_Mode", name, OperatingMode.POSITION.value)
             # Set P_Coefficient to lower value to avoid shakiness (Default is 32)
-            self.bus.write("P_Coefficient", name, 16)
+            self.bus.write("P_Coefficient", name, 14)  # 14: smooth, 16: jittery
             # Set I_Coefficient and D_Coefficient to default value 0 and 32
             self.bus.write("I_Coefficient", name, 0)
             self.bus.write("D_Coefficient", name, 32)
+
+        # Tuned settings for LeKiwi + PincOpen to avoid jitter and servo deaths.
+        # Lowering the P-gain on the large joints is the most critical fix.
+        for name in ("arm_shoulder_pan", "arm_shoulder_lift", "arm_elbow_flex", "arm_wrist_flex"):
+            self.bus.write("Acceleration", name, 200)
+            self.bus.write("P_Coefficient", name, 10)  # 10: smooth, 12: jittery
+
+        # PincOpen gripper-specific safety params (move fast through air, back off on contact)
+        self.bus.write("Acceleration", "arm_gripper", 200)
+        self.bus.write("Overload_Torque", "arm_gripper", 65)  # unit: 1%
+        self.bus.write("Protective_Torque", "arm_gripper", 5)  # unit: 1%
+        self.bus.write("Protection_Time", "arm_gripper", 7)  # unit: 10ms
 
         for name in self.base_motors:
             self.bus.write("Operating_Mode", name, OperatingMode.VELOCITY.value)
